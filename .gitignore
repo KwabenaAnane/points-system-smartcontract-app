@@ -19,4 +19,12 @@
 # Hardhat coverage reports
 /coverage
 
+# Debug info
+*.dbg.json
+*.tsbuildinfo
+
+# Optional
+.env
+.env.local
+
 
