@@ -2,7 +2,7 @@
 pragma solidity ^0.8.28;
 
 contract PointsSystem {
-    uint public immutable owner;
+    address public immutable owner;
 
     enum Reward {VIP, GOLD, SILVER, BRONZE}
 
@@ -15,8 +15,8 @@ contract PointsSystem {
 
     //mappings
     mapping(address => Member) private _members;
-    mapping(address => bool) internal bannedAccounts;
-    mapping(address => uint ) internal fallbackCalls;
+    mapping(address => bool) internal _bannedAccounts;
+    mapping(address => uint ) internal _fallbackCalls;
 
     uint256 public totalPoints;
     bool private _locked; // reentrancy guard
@@ -34,6 +34,7 @@ contract PointsSystem {
     error NotOwner();
     error NotMember(address account);
     error AlreadyMember(address account);
+    error AccountBanned(address account);
     error InsufficientPoints(uint256 availableBalance, uint256 required);
   
     
@@ -47,7 +48,7 @@ contract PointsSystem {
         _;
     }
     modifier accountBanned(){
-        require(!bannedAccounts[msg.sender], "Account is banned");
+        if(!_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
         _;
     }
     modifier nonReentrancy() {
@@ -63,7 +64,7 @@ contract PointsSystem {
 
      
     function joinAsMember() external accountBanned {
-        if(!_members[msg.sender].exists) revert AlreadyMember(msg.sender);
+        if(_members[msg.sender].exists) revert AlreadyMember(msg.sender);
         _members[msg.sender] = Member(true, 0, uint48(block.timestamp));
         emit MemberJoined(msg.sender, uint48(block.timestamp));
     }
@@ -88,7 +89,7 @@ contract PointsSystem {
 
     function transferPoints(address to, uint256 amount) external onlyMember accountBanned nonReentrancy {
         if (!_members[to].exists) revert NotMember(to);
-        if (amount == 0) revert();
+        require(amount > 0, "Amount must be greater than 0");
 
         uint256 senderBal = _members[msg.sender].balance;
         if (senderBal < amount) revert InsufficientPoints(senderBal, amount);
@@ -116,12 +117,32 @@ contract PointsSystem {
         emit RewardRedeemed(msg.sender, rewardType, rewardCost);     
     }
 
-    function pointsRequiredForRewards(Reward rewardType) public pure returns (uint256) {
+    function banAccount(address accountToBan) external onlyOwner {
+        if(!_members[accountToBan].exists) revert NotMember(accountToBan);
+        _bannedAccounts[accountToBan] = true;
+        emit MemberBanned(accountToBan);
+
+    }
+
+    //VIEWS
+    function getMyBalance() external view onlyMember returns (uint256) {
+        return _members[msg.sender].balance;
+    }
+
+    function balanceOf(address account) external view onlyOwner returns (uint256) {
+        if(!_members[account].exists) revert NotMember(account);
+        return _members[account].balance;
+    }
+
+     function pointsRequiredForRewards(Reward rewardType) public pure returns (uint256) {
         if (rewardType == Reward.VIP) return 1000;
         if (rewardType == Reward.GOLD) return 500;
         if (rewardType == Reward.SILVER) return 250;
-        if (rewardType == Reward.BRONZE) return 100;   
+        if (rewardType == Reward.BRONZE) return 100;
+        return 0;   
     }
+
+
 
 
 
