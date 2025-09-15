@@ -103,6 +103,27 @@ contract PointsSystem {
         emit PointsTransferred(msg.sender, to, amount);
     }
 
+    function redeemReward(Reward rewardType) external onlyMember accountBanned nonReentrancy {
+        uint256 rewardCost = pointsRequiredForRewards(rewardType);
+        require(rewardCost > 0, "Invalid reward");
+
+        uint256 bal = _members[msg.sender].balance;
+        if (bal < rewardCost) revert InsufficientPoints(bal, rewardCost);
+
+        unchecked {_members[msg.sender].balance = uint96(bal - rewardCost); }
+        totalPoints -= rewardCost;
+
+        emit RewardRedeemed(msg.sender, rewardType, rewardCost);     
+    }
+
+    function pointsRequiredForRewards(Reward rewardType) public pure returns (uint256) {
+        if (rewardType == Reward.VIP) return 1000;
+        if (rewardType == Reward.GOLD) return 500;
+        if (rewardType == Reward.SILVER) return 250;
+        if (rewardType == Reward.BRONZE) return 100;   
+    }
+
+
 
 
 
