@@ -142,11 +142,30 @@ contract PointsSystem {
         return 0;   
     }
 
-
-
-
-
-
-
+    // RECEIVE & FALLBACK
+  
+receive() external payable {
+    // Check if account is banned (revert if banned)
+    if (_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
     
+    emit ReceivedFunds(msg.sender, msg.value);
+    }
+
+fallback() external payable {
+    // Check if account is already banned
+    if (_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
+    
+    _fallbackCalls[msg.sender] += 1;
+
+    if (_fallbackCalls[msg.sender] >= 10) {
+        _bannedAccounts[msg.sender] = true;
+        emit MemberBanned(msg.sender);
+        
+        revert AccountBanned(msg.sender);
+    }
+
+    if (msg.value > 0) {
+        emit ReceivedFunds(msg.sender, msg.value);
+    }    
+    }
 }
