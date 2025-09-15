@@ -9,7 +9,6 @@ contract PointsSystem {
     struct Member {
         bool exists;
         uint96 balance;
-        uint48 joinedAt;
     }
 
     //MAPPINGS
@@ -21,7 +20,7 @@ contract PointsSystem {
     bool private _locked; // reentrancy guard
 
     //EVENTS
-    event MemberJoined(address indexed member, uint48 joinedAt);
+    event MemberJoined(address indexed member);
     event MemberBanned(address indexed account);
     event PointsEarned(address indexed member, uint256 amount);
     event PointsAssigned(address indexed by, address indexed to, uint256 amount);
@@ -46,7 +45,7 @@ contract PointsSystem {
         _;
     }
     modifier accountBanned(){
-        if(!_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
+        if(_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
         _;
     }
     modifier nonReentrancy() {
@@ -61,10 +60,10 @@ contract PointsSystem {
     }
 
     //FUNCTIONS 
-    function joinAsMember() external accountBanned {
+     function joinAsMember() external accountBanned {
         if(_members[msg.sender].exists) revert AlreadyMember(msg.sender);
-        _members[msg.sender] = Member(true, 0, uint48(block.timestamp));
-        emit MemberJoined(msg.sender, uint48(block.timestamp));
+        _members[msg.sender] = Member(true, 0);
+        emit MemberJoined(msg.sender);
     }
 
     function earnPoints(uint256 amount) external onlyMember  accountBanned nonReentrancy {
@@ -137,12 +136,11 @@ contract PointsSystem {
         if (rewardType == Reward.GOLD) return 500;
         if (rewardType == Reward.SILVER) return 250;
         if (rewardType == Reward.BRONZE) return 100;
-        return 0;   
+        return 0;     
     }
 
-    // RECEIVE & FALLBACK
-  
-receive() external payable {
+   // RECEIVE & FALLBACK
+    receive() external payable {
     if (_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
     
     emit ReceivedFunds(msg.sender, msg.value);
