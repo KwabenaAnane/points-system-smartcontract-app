@@ -34,7 +34,7 @@ contract PointsSystem {
     error NotOwner();
     error NotMember(address account);
     error AlreadyMember(address account);
-    error InsufficientBalance(uint256 availableBalance, uint256 required);
+    error InsufficientPoints(uint256 availableBalance, uint256 required);
   
     
     //Modifiers
@@ -86,9 +86,23 @@ contract PointsSystem {
         emit PointsAssigned(msg.sender, to, amount);   
     }
 
-    function transferPoints(address to, uint256 amount) external onlyOwner nonReentrancy {
-        
+    function transferPoints(address to, uint256 amount) external onlyMember accountBanned nonReentrancy {
+        if (!_members[to].exists) revert NotMember(to);
+        if (amount == 0) revert();
+
+        uint256 senderBal = _members[msg.sender].balance;
+        if (senderBal < amount) revert InsufficientPoints(senderBal, amount);
+
+        uint256 beforeTotal = totalPoints;
+
+        unchecked {_members[msg.sender].balance = uint96(senderBal - amount); }
+        _members[to].balance += uint96(amount);
+
+        assert(totalPoints == beforeTotal);
+
+        emit PointsTransferred(msg.sender, to, amount);
     }
+
 
 
 
