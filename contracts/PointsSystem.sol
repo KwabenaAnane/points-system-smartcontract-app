@@ -6,14 +6,13 @@ contract PointsSystem {
 
     enum Reward {VIP, GOLD, SILVER, BRONZE}
 
-    //Struct
     struct Member {
         bool exists;
         uint96 balance;
         uint48 joinedAt;
     }
 
-    //mappings
+    //MAPPINGS
     mapping(address => Member) private _members;
     mapping(address => bool) internal _bannedAccounts;
     mapping(address => uint ) internal _fallbackCalls;
@@ -21,7 +20,7 @@ contract PointsSystem {
     uint256 public totalPoints;
     bool private _locked; // reentrancy guard
 
-    //Events
+    //EVENTS
     event MemberJoined(address indexed member, uint48 joinedAt);
     event MemberBanned(address indexed account);
     event PointsEarned(address indexed member, uint256 amount);
@@ -30,15 +29,14 @@ contract PointsSystem {
     event RewardRedeemed(address indexed member, Reward reward, uint256 cost);
     event ReceivedFunds(address indexed from, uint256 amount);
 
-    //Custom Errors
+    //CUSTOM ERRORS
     error NotOwner();
     error NotMember(address account);
     error AlreadyMember(address account);
     error AccountBanned(address account);
     error InsufficientPoints(uint256 availableBalance, uint256 required);
   
-    
-    //Modifiers
+    //MODIFIERS
     modifier onlyOwner() {
         if (msg.sender != owner) revert NotOwner();
         _;
@@ -62,7 +60,7 @@ contract PointsSystem {
         owner = msg.sender;
     }
 
-     
+    //FUNCTIONS 
     function joinAsMember() external accountBanned {
         if(_members[msg.sender].exists) revert AlreadyMember(msg.sender);
         _members[msg.sender] = Member(true, 0, uint48(block.timestamp));
@@ -124,7 +122,7 @@ contract PointsSystem {
 
     }
 
-    //VIEWS
+    //VIEW FUNCTIONS
     function getMyBalance() external view onlyMember returns (uint256) {
         return _members[msg.sender].balance;
     }
@@ -145,14 +143,12 @@ contract PointsSystem {
     // RECEIVE & FALLBACK
   
 receive() external payable {
-    // Check if account is banned (revert if banned)
     if (_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
     
     emit ReceivedFunds(msg.sender, msg.value);
     }
 
 fallback() external payable {
-    // Check if account is already banned
     if (_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
     
     _fallbackCalls[msg.sender] += 1;
