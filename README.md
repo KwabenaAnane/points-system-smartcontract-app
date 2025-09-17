@@ -27,6 +27,7 @@ Local/CI: Node.js (v16+ recommended), npm or yarn
 npm install -y
 npx hardhat compile
 npx hardhat test
+npx hardhat ignition deploy ignition/modules/PointsSystem.ts --network localhost
 npx hardhat ignition deploy ignition/modules/PointsSystem.ts --sepolia verify
 
 # Gas Optimization & Security Measures

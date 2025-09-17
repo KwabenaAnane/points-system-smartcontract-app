@@ -1,0 +1,39 @@
+{
+  "_format": "hh3-sol-build-info-1",
+  "id": "solc-0_8_28-7e0a78e7fbe468fb2088ba9a6a124d512c9a9966",
+  "solcVersion": "0.8.28",
+  "solcLongVersion": "0.8.28+commit.7893614a",
+  "userSourceNameMap": {
+    "contracts/PointsSystem.sol": "project/contracts/PointsSystem.sol"
+  },
+  "input": {
+    "language": "Solidity",
+    "settings": {
+      "evmVersion": "cancun",
+      "optimizer": {
+        "enabled": true,
+        "runs": 200
+      },
+      "outputSelection": {
+        "*": {
+          "": [
+            "ast"
+          ],
+          "*": [
+            "abi",
+            "evm.bytecode",
+            "evm.deployedBytecode",
+            "evm.methodIdentifiers",
+            "metadata"
+          ]
+        }
+      },
+      "remappings": []
+    },
+    "sources": {
+      "project/contracts/PointsSystem.sol": {
+        "content": "// SPDX-License-Identifier: SEE LICENSE IN LICENSE\r\npragma solidity ^0.8.28;\r\n\r\ncontract PointsSystem {\r\n    address public immutable owner;\r\n\r\n    enum Reward {VIP, GOLD, SILVER, BRONZE}\r\n\r\n    struct Member {\r\n        bool exists;\r\n        uint96 balance;\r\n    }\r\n\r\n    //MAPPINGS\r\n    mapping(address => Member) public members;\r\n    mapping(address => bool) public bannedAccounts;\r\n    mapping(address => uint ) public fallbackCalls;\r\n\r\n    uint256 public totalPoints;\r\n    bool private _locked; // reentrancy guard\r\n\r\n    //EVENTS\r\n    event MemberJoined(address indexed member);\r\n    event MemberBanned(address indexed account);\r\n    event PointsEarned(address indexed member, uint256 amount);\r\n    event PointsAssigned(address indexed by, address indexed to, uint256 amount);\r\n    event PointsTransferred(address indexed from, address indexed to, uint256 amount);\r\n    event RewardRedeemed(address indexed member, Reward reward, uint256 cost);\r\n    event ReceivedFunds(address indexed from, uint256 amount);\r\n\r\n    //CUSTOM ERRORS\r\n    error NotOwner();\r\n    error NotMember(address account);\r\n    error AlreadyMember(address account);\r\n    error AccountBanned(address account);\r\n    error InsufficientPoints(uint256 availableBalance, uint256 required);\r\n  \r\n    //MODIFIERS\r\n    modifier onlyOwner() {\r\n        if (msg.sender != owner) revert NotOwner();\r\n        _;\r\n    }\r\n    modifier onlyMember(){\r\n        if(!members[msg.sender].exists) revert NotMember(msg.sender);\r\n        _;\r\n    }\r\n    modifier accountBanned(){\r\n        if(bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);\r\n        _;\r\n    }\r\n    modifier nonReentrancy() {\r\n        require(!_locked, \"Stop making re-entrancy calls. Please hold\");\r\n        _locked = true;\r\n        _;\r\n        _locked = false;\r\n    }\r\n\r\n    constructor() {\r\n        owner = msg.sender;\r\n    }\r\n\r\n    //FUNCTIONS \r\n     function joinAsMember() external accountBanned {\r\n        if(members[msg.sender].exists) revert AlreadyMember(msg.sender);\r\n        members[msg.sender] = Member(true, 0);\r\n        emit MemberJoined(msg.sender);\r\n    }\r\n\r\n    function earnPoints(uint256 amount) external onlyMember  accountBanned nonReentrancy {\r\n        require(amount > 0, \"Amount must be greater than 0\");\r\n        require(amount <= 1000, \"Exceeds max earn per tx\");\r\n\r\n        members[msg.sender].balance += uint96(amount);\r\n        totalPoints += amount;\r\n        emit PointsEarned(msg.sender, amount);\r\n    }\r\n\r\n    function assignPoints(address to, uint256 amount) external onlyOwner nonReentrancy {\r\n        if (!members[to].exists) revert NotMember(to);\r\n        require(amount > 0, \"Amount must be greater than 0\");\r\n\r\n        members[to].balance += uint96(amount);\r\n        totalPoints += amount;\r\n        emit PointsAssigned(msg.sender, to, amount);   \r\n    }\r\n\r\n    function transferPoints(address to, uint256 amount) external onlyMember accountBanned nonReentrancy {\r\n        if (!members[to].exists) revert NotMember(to);\r\n        require(amount > 0, \"Amount must be greater than 0\");\r\n\r\n        uint256 senderBal = members[msg.sender].balance;\r\n        if (senderBal < amount) revert InsufficientPoints(senderBal, amount);\r\n\r\n        uint256 beforeTotal = totalPoints;\r\n\r\n        unchecked {members[msg.sender].balance = uint96(senderBal - amount); }\r\n        members[to].balance += uint96(amount);\r\n\r\n        assert(totalPoints == beforeTotal);\r\n\r\n        emit PointsTransferred(msg.sender, to, amount);\r\n    }\r\n\r\n    function redeemReward(Reward rewardType) external onlyMember accountBanned nonReentrancy {\r\n        uint256 rewardCost = pointsRequiredForRewards(rewardType);\r\n        require(rewardCost > 0, \"Invalid reward\");\r\n\r\n        uint256 bal = members[msg.sender].balance;\r\n        if (bal < rewardCost) revert InsufficientPoints(bal, rewardCost);\r\n\r\n        unchecked {members[msg.sender].balance = uint96(bal - rewardCost); }\r\n        totalPoints -= rewardCost;\r\n\r\n        emit RewardRedeemed(msg.sender, rewardType, rewardCost);     \r\n    }\r\n\r\n    function banAccount(address accountToBan) external onlyOwner {\r\n        if(!members[accountToBan].exists) revert NotMember(accountToBan);\r\n        bannedAccounts[accountToBan] = true;\r\n        emit MemberBanned(accountToBan);\r\n\r\n    }\r\n\r\n    //VIEW FUNCTIONS\r\n    function getMyBalance() external view onlyMember returns (uint256) {\r\n        return members[msg.sender].balance;\r\n    }\r\n\r\n    function balanceOf(address account) external view onlyOwner returns (uint256) {\r\n        if(!members[account].exists) revert NotMember(account);\r\n        return members[account].balance;\r\n    }\r\n\r\n     function pointsRequiredForRewards(Reward rewardType) public pure returns (uint256) {\r\n        if (rewardType == Reward.VIP) return 1000;\r\n        if (rewardType == Reward.GOLD) return 500;\r\n        if (rewardType == Reward.SILVER) return 250;\r\n        if (rewardType == Reward.BRONZE) return 100;\r\n        return 0;     \r\n    }\r\n\r\n   // RECEIVE & FALLBACK\r\n    receive() external payable {\r\n    if (bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);\r\n    \r\n    emit ReceivedFunds(msg.sender, msg.value);\r\n    }\r\n\r\nfallback() external payable {\r\n    if (bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);\r\n    \r\n    fallbackCalls[msg.sender] += 1;\r\n\r\n    if (fallbackCalls[msg.sender] >= 10) {\r\n        bannedAccounts[msg.sender] = true;\r\n        emit MemberBanned(msg.sender);\r\n        \r\n        revert AccountBanned(msg.sender);\r\n    }\r\n\r\n    if (msg.value > 0) {\r\n        emit ReceivedFunds(msg.sender, msg.value);\r\n    }    \r\n    }\r\n}"
+      }
+    }
+  }
+}

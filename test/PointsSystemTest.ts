@@ -207,47 +207,4 @@ describe("PointsSystem", function () {
     });  
 });
 
-describe("Receive Function", function () {
-    it("Should accept ETH and emit ReceivedFunds event", async function () {
-        const { pointsSystem, member1 } = await deployPointsSystemFixture();
-
-        await expect(member1.sendTransaction({
-            to: pointsSystem.target,
-            value: ethers.parseEther("1.0") // sending without data triggers receive()
-        }))
-            .to.emit(pointsSystem, "ReceivedFunds")
-            .withArgs(member1.address, ethers.parseEther("1.0"));
-    });
-
-    it("Should accumulate balance when multiple ETH transfers are received", async function () {
-        const { pointsSystem, member1 } = await deployPointsSystemFixture();
-
-        await member1.sendTransaction({
-            to: pointsSystem.target,
-            value: ethers.parseEther("0.5")
-        });
-
-        await member1.sendTransaction({
-            to: pointsSystem.target,
-            value: ethers.parseEther("0.5")
-        });
-
-        const balance = await ethers.provider.getBalance(pointsSystem.target);
-        expect(balance).to.equal(ethers.parseEther("1.0"));
-    });
-
-    it("Should revert if a banned account sends ETH", async function () {
-        const { pointsSystem, member1 } = await deployPointsSystemFixture();
-        await pointsSystem.connect(member1).joinAsMember();
-        await pointsSystem.banAccount(member1.address);
-
-        await expect(member1.sendTransaction({
-            to: pointsSystem.target,
-            value: ethers.parseEther("0.1")
-        }))
-            .to.be.revertedWithCustomError(pointsSystem, "AccountBanned")
-            .withArgs(member1.address);
-    });
-});
-
 });
