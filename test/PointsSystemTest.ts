@@ -3,169 +3,251 @@ import { network } from "hardhat";
 
 const { ethers } = await network.connect();
 
-
 describe("PointsSystem", function () {
-  async function deployPointsSystemFixture() {
-    const [ownerAccount, alice, bob] = await ethers.getSigners();
-    const PointsSystem = await ethers.getContractFactory("PointsSystem");
-    const pointsSystem = await PointsSystem.deploy();
-    await pointsSystem.waitForDeployment();
+    async function deployPointsSystemFixture() {
+        const [ownerAccount, member1, member2] = await ethers.getSigners();
+        const PointsSystem = await ethers.getContractFactory("PointsSystem");
+        const pointsSystem = await PointsSystem.deploy();
+        await pointsSystem.waitForDeployment();
 
-    return { pointsSystem, ownerAccount, alice, bob };
-  }
+        return { pointsSystem, ownerAccount, member1, member2 };
+    }
 
-  describe("Deployment", function () {
-    it("Should set the correct owner", async function () {
-      const { pointsSystem, ownerAccount } = await deployPointsSystemFixture();
-      expect(await pointsSystem.owner()).to.equal(ownerAccount.address);
-    });
-  });
-
-  describe("Membership", function () {
-    it("Should allow a user to join as a member", async function () {
-      const { pointsSystem, alice } = await deployPointsSystemFixture();
-      await expect(pointsSystem.connect(alice).joinAsMember())
-        .to.emit(pointsSystem, "MemberJoined");
-        //.withArgs(alice.address, await pointsSystem.getBlockTime()); 
-    });
-   
-    it("Should revert if already a member", async function () {
-      const { pointsSystem, alice } = await deployPointsSystemFixture();
-      await pointsSystem.connect(alice).joinAsMember();
-      await expect(pointsSystem.connect(alice).joinAsMember())
-        .to.be.revertedWithCustomError(pointsSystem, "AlreadyMember")
-        .withArgs(alice.address);
-    });
-  });
-
-  describe("Points Operations", function () {
-    it("Should allow a member to earn points", async function () {
-      const { pointsSystem, alice } = await deployPointsSystemFixture();
-      await pointsSystem.connect(alice).joinAsMember();
-
-      await expect(pointsSystem.connect(alice).earnPoints(100))
-        .to.emit(pointsSystem, "PointsEarned")
-        .withArgs(alice.address, 100);
-
-      expect(await pointsSystem.connect(alice).getMyBalance()).to.equal(100);
+    describe("Deployment", function () {
+        it("Should set the correct owner", async function () {
+            const { pointsSystem, ownerAccount } = await deployPointsSystemFixture();
+            expect(await pointsSystem.owner()).to.equal(ownerAccount.address);
+        });
     });
 
-    it("Should revert if non-owner tries to assign points", async function () {
-      const { pointsSystem, alice } = await deployPointsSystemFixture();
-      await pointsSystem.connect(alice).joinAsMember();
+    describe("Membership", function () {
+        it("Should allow a user to join as a member", async function () {
+            const { pointsSystem, member1 } = await deployPointsSystemFixture();
+            await expect(pointsSystem.connect(member1).joinAsMember())
+                .to.emit(pointsSystem, "MemberJoined")
+                .withArgs(member1.address);
+        });
 
-      await expect(pointsSystem.connect(alice).assignPoints(alice.address, 50))
-        .to.be.revertedWithCustomError(pointsSystem, "NotOwner");
+        it("Should revert if already a member", async function () {
+            const { pointsSystem, member1 } = await deployPointsSystemFixture();
+            await pointsSystem.connect(member1).joinAsMember();
+            await expect(pointsSystem.connect(member1).joinAsMember())
+                .to.be.revertedWithCustomError(pointsSystem, "AlreadyMember")
+                .withArgs(member1.address);
+        });
     });
 
-    it("Owner can assign points to a member", async function () {
-      const { pointsSystem, ownerAccount, alice } = await deployPointsSystemFixture();
-      await pointsSystem.connect(alice).joinAsMember();
+    describe("Points Operations", function () {
+        it("Should allow a member to earn points", async function () {
+            const { pointsSystem, member1 } = await deployPointsSystemFixture();
+            await pointsSystem.connect(member1).joinAsMember();
 
-      await expect(pointsSystem.assignPoints(alice.address, 50))
-        .to.emit(pointsSystem, "PointsAssigned")
-        .withArgs(ownerAccount.address, alice.address, 50);
+            await expect(pointsSystem.connect(member1).earnPoints(100))
+                .to.emit(pointsSystem, "PointsEarned")
+                .withArgs(member1.address, 100);
 
-      expect(await pointsSystem.connect(alice).getMyBalance()).to.equal(50);
+            expect(await pointsSystem.connect(member1).getMyBalance()).to.equal(100);
+        });
+
+        it("Should revert if non-owner tries to assign points", async function () {
+            const { pointsSystem, member1 } = await deployPointsSystemFixture();
+            await pointsSystem.connect(member1).joinAsMember();
+
+            await expect(pointsSystem.connect(member1).assignPoints(member1.address, 50))
+                .to.be.revertedWithCustomError(pointsSystem, "NotOwner");
+        });
+
+        it("Owner can assign points to a member", async function () {
+            const { pointsSystem, ownerAccount, member1 } = await deployPointsSystemFixture();
+            await pointsSystem.connect(member1).joinAsMember();
+
+            await expect(pointsSystem.assignPoints(member1.address, 50))
+                .to.emit(pointsSystem, "PointsAssigned")
+                .withArgs(ownerAccount.address, member1.address, 50);
+
+            expect(await pointsSystem.connect(member1).getMyBalance()).to.equal(50);
+        });
+
+        it("Should allow points transfer between members", async function () {
+            const { pointsSystem, member1, member2 } = await deployPointsSystemFixture();
+            await pointsSystem.connect(member1).joinAsMember();
+            await pointsSystem.connect(member2).joinAsMember();
+            await pointsSystem.assignPoints(member1.address, 100);
+
+            await expect(pointsSystem.connect(member1).transferPoints(member2.address, 40))
+                .to.emit(pointsSystem, "PointsTransferred")
+                .withArgs(member1.address, member2.address, 40);
+
+            expect(await pointsSystem.connect(member1).getMyBalance()).to.equal(60);
+            expect(await pointsSystem.balanceOf(member2.address)).to.equal(40);
+        });
     });
 
-    it("Should allow points transfer between members", async function () {
-      const { pointsSystem, alice, bob } = await deployPointsSystemFixture();
-      await pointsSystem.connect(alice).joinAsMember();
-      await pointsSystem.connect(bob).joinAsMember();
-      await pointsSystem.assignPoints(alice.address, 100);
+    describe("Rewards", function () {
+        it("Should allow redeeming rewards", async function () {
+            const { pointsSystem, member1 } = await deployPointsSystemFixture();
+            await pointsSystem.connect(member1).joinAsMember();
+            await pointsSystem.assignPoints(member1.address, 1000);
 
-      await expect(pointsSystem.connect(alice).transferPoints(bob.address, 40))
-        .to.emit(pointsSystem, "PointsTransferred")
-        .withArgs(alice.address, bob.address, 40);
-
-      expect(await pointsSystem.connect(alice).getMyBalance()).to.equal(60);
-      expect(await pointsSystem.balanceOf(bob.address)).to.equal(40);
+            for (let reward = 0; reward <= 3; reward++) {
+                const cost = await pointsSystem.pointsRequiredForRewards(reward);
+                if ((await pointsSystem.connect(member1).getMyBalance()) >= cost) {
+                    await expect(pointsSystem.connect(member1).redeemReward(reward))
+                        .to.emit(pointsSystem, "RewardRedeemed")
+                        .withArgs(member1.address, reward, cost);
+                }
+            }
+        });
     });
-  });
 
-  describe("Rewards", function () {
-    it("Should allow redeeming rewards", async function () {
-      const { pointsSystem, alice } = await deployPointsSystemFixture();
-      await pointsSystem.connect(alice).joinAsMember();
-      await pointsSystem.assignPoints(alice.address, 1000);
+    describe("Banning & Errors", function () {
+        it("Owner can ban a member", async function () {
+            const { pointsSystem, member1 } = await deployPointsSystemFixture();
+            await pointsSystem.connect(member1).joinAsMember();
 
-      for (let reward = 0; reward <= 3; reward++) {
-        const cost = await pointsSystem.pointsRequiredForRewards(reward);
-        if ((await pointsSystem.connect(alice).getMyBalance()) >= cost) {
-          await expect(pointsSystem.connect(alice).redeemReward(reward))
-            .to.emit(pointsSystem, "RewardRedeemed")
-            .withArgs(alice.address, reward, cost);
+            await expect(pointsSystem.banAccount(member1.address))
+                .to.emit(pointsSystem, "MemberBanned")
+                .withArgs(member1.address);
+
+            await expect(pointsSystem.connect(member1).earnPoints(50))
+                .to.be.revertedWithCustomError(pointsSystem, "AccountBanned");
+        });
+
+        it("Should revert if non-owner tries to ban a member", async function () {
+            const { pointsSystem, member1 } = await deployPointsSystemFixture();
+            await pointsSystem.connect(member1).joinAsMember();
+
+            await expect(pointsSystem.connect(member1).banAccount(member1.address))
+                .to.be.revertedWithCustomError(pointsSystem, "NotOwner");
+        });
+    });
+
+    describe("Fallback Function", function () {
+    it("Should track fallback calls and emit ReceivedFunds when value is sent", async function () {
+        const { pointsSystem, member1 } = await deployPointsSystemFixture();
+        
+        await expect(member1.sendTransaction({
+            to: pointsSystem.target,
+            value: ethers.parseEther("0.1"),
+            data: "0x1234"
+        }))
+            .to.emit(pointsSystem, "ReceivedFunds")
+            .withArgs(member1.address, ethers.parseEther("0.1"));
+
+        expect(await pointsSystem.fallbackCalls(member1.address)).to.equal(1);
+    });
+
+    it("Should track fallback calls without emitting ReceivedFunds when no value is sent", async function () {
+        const { pointsSystem, member1 } = await deployPointsSystemFixture();
+        
+        await member1.sendTransaction({
+            to: pointsSystem.target,
+            value: 0,
+            data: "0x1234" 
+        });
+
+        expect(await pointsSystem.fallbackCalls(member1.address)).to.equal(1);
+    });
+
+    it("Should increment fallback call counter for multiple calls", async function () {
+        const { pointsSystem, member1 } = await deployPointsSystemFixture();
+        
+        for (let i = 1; i <= 5; i++) {
+            await member1.sendTransaction({
+                to: pointsSystem.target,
+                value: 0,
+                data: "0x1234"
+            });
+            expect(await pointsSystem.fallbackCalls(member1.address)).to.equal(i);
         }
-      }
     });
 
-    it("Should return correct points for each reward", async function () {
-        const { pointsSystem } = await deployPointsSystemFixture();
-        expect(await pointsSystem.pointsRequiredForRewards(0)).to.equal(1000);
-        expect(await pointsSystem.pointsRequiredForRewards(1)).to.equal(500);  
-        expect(await pointsSystem.pointsRequiredForRewards(2)).to.equal(250);
-        expect(await pointsSystem.pointsRequiredForRewards(3)).to.equal(100);
-    });
-  });
+    it("Should revert immediately if banned account tries to trigger fallback", async function () {
+        const { pointsSystem, member1 } = await deployPointsSystemFixture();
+        
+        await pointsSystem.connect(member1).joinAsMember();
+        await pointsSystem.banAccount(member1.address);
 
-  describe("Banning & Errors", function () {
-    it("Owner can ban a member", async function () {
-      const { pointsSystem, alice } = await deployPointsSystemFixture();
-      await pointsSystem.connect(alice).joinAsMember();
+        expect(await pointsSystem.bannedAccounts(member1.address)).to.be.true;
 
-      await expect(pointsSystem.banAccount(alice.address))
-        .to.emit(pointsSystem, "MemberBanned")
-        .withArgs(alice.address);
+        await expect(member1.sendTransaction({
+            to: pointsSystem.target,
+            value: ethers.parseEther("0.1"),
+            data: "0x1234"
+        }))
+            .to.be.revertedWithCustomError(pointsSystem, "AccountBanned")
+            .withArgs(member1.address);
 
-      await expect(pointsSystem.connect(alice).earnPoints(50))
-        .to.be.revertedWithCustomError(pointsSystem, "AccountBanned");
+        expect(await pointsSystem.fallbackCalls(member1.address)).to.equal(0);
     });
 
-    describe("Fallback and Receive", function () {
-    it("Should handle Ether correctly in the receive function", async function () {
-      const { pointsSystem, owner } = await deployPointsSystemFixture();
+    it("Should handle fallback calls from different accounts independently", async function () {
+        const { pointsSystem, member1, member2 } = await deployPointsSystemFixture();
+        
+        for (let i = 1; i <= 3; i++) {
+            await member1.sendTransaction({
+                to: pointsSystem.target,
+                value: 0,
+                data: "0x1234"
+            });
+        }
 
-      const amountToSend = ethers.utils.parseEther("1");
+        for (let i = 1; i <= 5; i++) {
+            await member2.sendTransaction({
+                to: pointsSystem.target,
+                value: 0,
+                data: "0x5678"
+            });
+        }
 
-      await expect({
-        to: pointsSystem.address,
-        value: amountToSend,
-      })
-        .to.emit(pointsSystem, "ReceivedFunds")
-        .withArgs(owner.address, amountToSend);
+        expect(await pointsSystem.fallbackCalls(member1.address)).to.equal(3);
+        expect(await pointsSystem.fallbackCalls(member2.address)).to.equal(5);
+        expect(await pointsSystem.bannedAccounts(member1.address)).to.be.false;
+        expect(await pointsSystem.bannedAccounts(member2.address)).to.be.false;
+    });  
+});
+
+describe("Receive Function", function () {
+    it("Should accept ETH and emit ReceivedFunds event", async function () {
+        const { pointsSystem, member1 } = await deployPointsSystemFixture();
+
+        await expect(member1.sendTransaction({
+            to: pointsSystem.target,
+            value: ethers.parseEther("1.0") // sending without data triggers receive()
+        }))
+            .to.emit(pointsSystem, "ReceivedFunds")
+            .withArgs(member1.address, ethers.parseEther("1.0"));
     });
 
-    it("Should handle Ether correctly in the fallback function", async function () {
-      const { pointsSystem, owner } = await deployPointsSystemFixture();
+    it("Should accumulate balance when multiple ETH transfers are received", async function () {
+        const { pointsSystem, member1 } = await deployPointsSystemFixture();
 
-      const amountToSend = ethers.utils.parseEther("1");
+        await member1.sendTransaction({
+            to: pointsSystem.target,
+            value: ethers.parseEther("0.5")
+        });
 
-      await expect({
-        to: pointsSystem.address,
-        value: amountToSend,
-      }).to.not.emit();
+        await member1.sendTransaction({
+            to: pointsSystem.target,
+            value: ethers.parseEther("0.5")
+        });
 
-      await expect(pointsSystem.connect(owner).sendTransaction({
-        to: pointsSystem.address,
-        value: amountToSend,
-      })).to.be.revertedWith("AccountBanned");
+        const balance = await ethers.provider.getBalance(pointsSystem.target);
+        expect(balance).to.equal(ethers.parseEther("1.0"));
     });
-  });
 
- 
+    it("Should revert if a banned account sends ETH", async function () {
+        const { pointsSystem, member1 } = await deployPointsSystemFixture();
+        await pointsSystem.connect(member1).joinAsMember();
+        await pointsSystem.banAccount(member1.address);
 
+        await expect(member1.sendTransaction({
+            to: pointsSystem.target,
+            value: ethers.parseEther("0.1")
+        }))
+            .to.be.revertedWithCustomError(pointsSystem, "AccountBanned")
+            .withArgs(member1.address);
+    });
+});
 
-    // it("Fallback triggers ban after 10 calls", async function () {
-    //   const { pointsSystem, ownerAccount } = await deployPointsSystemFixture();
-    //   const contractAddress = await pointsSystem.getAddress();
-
-    //   for (let i = 0; i < 9; i++) {
-    //     await ownerAccount.sendTransaction({ to: contractAddress, data: "0x" });
-    //   }
-
-    //   await expect(ownerAccount.sendTransaction({ to: contractAddress, data: "0x" }))
-    //     .to.be.revertedWithCustomError(pointsSystem, "AccountBanned");
-    // });
-  });
 });

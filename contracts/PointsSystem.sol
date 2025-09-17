@@ -12,9 +12,9 @@ contract PointsSystem {
     }
 
     //MAPPINGS
-    mapping(address => Member) private _members;
-    mapping(address => bool) internal _bannedAccounts;
-    mapping(address => uint ) internal _fallbackCalls;
+    mapping(address => Member) public members;
+    mapping(address => bool) public bannedAccounts;
+    mapping(address => uint ) public fallbackCalls;
 
     uint256 public totalPoints;
     bool private _locked; // reentrancy guard
@@ -41,11 +41,11 @@ contract PointsSystem {
         _;
     }
     modifier onlyMember(){
-        if(!_members[msg.sender].exists) revert NotMember(msg.sender);
+        if(!members[msg.sender].exists) revert NotMember(msg.sender);
         _;
     }
     modifier accountBanned(){
-        if(_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
+        if(bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
         _;
     }
     modifier nonReentrancy() {
@@ -61,8 +61,8 @@ contract PointsSystem {
 
     //FUNCTIONS 
      function joinAsMember() external accountBanned {
-        if(_members[msg.sender].exists) revert AlreadyMember(msg.sender);
-        _members[msg.sender] = Member(true, 0);
+        if(members[msg.sender].exists) revert AlreadyMember(msg.sender);
+        members[msg.sender] = Member(true, 0);
         emit MemberJoined(msg.sender);
     }
 
@@ -70,31 +70,31 @@ contract PointsSystem {
         require(amount > 0, "Amount must be greater than 0");
         require(amount <= 1000, "Exceeds max earn per tx");
 
-        _members[msg.sender].balance += uint96(amount);
+        members[msg.sender].balance += uint96(amount);
         totalPoints += amount;
         emit PointsEarned(msg.sender, amount);
     }
 
     function assignPoints(address to, uint256 amount) external onlyOwner nonReentrancy {
-        if (!_members[to].exists) revert NotMember(to);
+        if (!members[to].exists) revert NotMember(to);
         require(amount > 0, "Amount must be greater than 0");
 
-        _members[to].balance += uint96(amount);
+        members[to].balance += uint96(amount);
         totalPoints += amount;
         emit PointsAssigned(msg.sender, to, amount);   
     }
 
     function transferPoints(address to, uint256 amount) external onlyMember accountBanned nonReentrancy {
-        if (!_members[to].exists) revert NotMember(to);
+        if (!members[to].exists) revert NotMember(to);
         require(amount > 0, "Amount must be greater than 0");
 
-        uint256 senderBal = _members[msg.sender].balance;
+        uint256 senderBal = members[msg.sender].balance;
         if (senderBal < amount) revert InsufficientPoints(senderBal, amount);
 
         uint256 beforeTotal = totalPoints;
 
-        unchecked {_members[msg.sender].balance = uint96(senderBal - amount); }
-        _members[to].balance += uint96(amount);
+        unchecked {members[msg.sender].balance = uint96(senderBal - amount); }
+        members[to].balance += uint96(amount);
 
         assert(totalPoints == beforeTotal);
 
@@ -105,30 +105,30 @@ contract PointsSystem {
         uint256 rewardCost = pointsRequiredForRewards(rewardType);
         require(rewardCost > 0, "Invalid reward");
 
-        uint256 bal = _members[msg.sender].balance;
+        uint256 bal = members[msg.sender].balance;
         if (bal < rewardCost) revert InsufficientPoints(bal, rewardCost);
 
-        unchecked {_members[msg.sender].balance = uint96(bal - rewardCost); }
+        unchecked {members[msg.sender].balance = uint96(bal - rewardCost); }
         totalPoints -= rewardCost;
 
         emit RewardRedeemed(msg.sender, rewardType, rewardCost);     
     }
 
     function banAccount(address accountToBan) external onlyOwner {
-        if(!_members[accountToBan].exists) revert NotMember(accountToBan);
-        _bannedAccounts[accountToBan] = true;
+        if(!members[accountToBan].exists) revert NotMember(accountToBan);
+        bannedAccounts[accountToBan] = true;
         emit MemberBanned(accountToBan);
 
     }
 
     //VIEW FUNCTIONS
     function getMyBalance() external view onlyMember returns (uint256) {
-        return _members[msg.sender].balance;
+        return members[msg.sender].balance;
     }
 
     function balanceOf(address account) external view onlyOwner returns (uint256) {
-        if(!_members[account].exists) revert NotMember(account);
-        return _members[account].balance;
+        if(!members[account].exists) revert NotMember(account);
+        return members[account].balance;
     }
 
      function pointsRequiredForRewards(Reward rewardType) public pure returns (uint256) {
@@ -141,18 +141,18 @@ contract PointsSystem {
 
    // RECEIVE & FALLBACK
     receive() external payable {
-    if (_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
+    if (bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
     
     emit ReceivedFunds(msg.sender, msg.value);
     }
 
 fallback() external payable {
-    if (_bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
+    if (bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
     
-    _fallbackCalls[msg.sender] += 1;
+    fallbackCalls[msg.sender] += 1;
 
-    if (_fallbackCalls[msg.sender] >= 10) {
-        _bannedAccounts[msg.sender] = true;
+    if (fallbackCalls[msg.sender] >= 10) {
+        bannedAccounts[msg.sender] = true;
         emit MemberBanned(msg.sender);
         
         revert AccountBanned(msg.sender);

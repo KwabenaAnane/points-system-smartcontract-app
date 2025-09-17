@@ -23,25 +23,25 @@ ethers.js (used in tests), Mocha / Chai for tests (hardhat test)
 
 Local/CI: Node.js (v16+ recommended), npm or yarn
 
+# Installation & Usage
+npm install -y
+npx hardhat compile
+npx hardhat test
+npx hardhat ignition deploy ignition/modules/PointsSystem.ts --sepolia verify
+
 # Gas Optimization & Security Measures
 
 In designing the Points System smart contract, careful attention was given to both gas efficiency and security best practices. Since smart contracts run on the Ethereum Virtual Machine (EVM), every transaction consumes gas, and inefficient code can quickly become costly for users. At the same time, poor security practices could expose the system to vulnerabilities. To address these concerns, the following measures were implemented:
 
 1. The contract uses custom errors instead of string-based require messages, reducing gas consumption by optimizing how reverts are handled.
 
-2. The checks-effects-interactions pattern is implemented in state-changing functions, enhancing security by preventing reentrancy vulnerabilities.
+2. Key variables such as the owner and reward types are declared as immutable or enum, lowering storage costs and improving gas efficiency.
 
-3. Key variables such as the owner and reward types are declared as immutable or enum, lowering storage costs and improving gas efficiency.
+3. The contract applies access control modifiers (e.g., onlyOwner) to restrict sensitive functions, ensuring that only authorized accounts can perform administrative actions, thereby improving overall contract security.
 
-4. The contract applies access control modifiers (e.g., onlyOwner) to restrict sensitive functions, ensuring that only authorized accounts can perform administrative actions, thereby improving overall contract security.
+4. A nonReentrancy modifier using a simple _locked boolean is applied to state-changing functions that transfer or update balances, protecting against reentrancy attacks by preventing nested calls that could otherwise lead to double-spending or corrupted state.
 
-5. A nonReentrancy modifier using a simple _locked boolean is applied to state-changing functions that transfer or update balances, protecting against reentrancy attacks by preventing nested calls that could otherwise lead to double-spending or corrupted state.
 
-# Installation & Usage
-npm install -y
-npx hardhat compile
-npx hardhat test
-npx hardhat ignition deploy ignition/modules/PointsSystem.ts --sepolia verify
 
 
 
