@@ -26,7 +26,7 @@ contract PointsSystem {
     event PointsAssigned(address indexed by, address indexed to, uint256 amount);
     event PointsTransferred(address indexed from, address indexed to, uint256 amount);
     event RewardRedeemed(address indexed member, Reward reward, uint256 cost);
-    event ReceivedFunds(address indexed from, uint256 amount);
+   
 
     //CUSTOM ERRORS
     error NotOwner();
@@ -143,12 +143,12 @@ contract PointsSystem {
 
    // RECEIVE & FALLBACK
     receive() external payable {
-    if (bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
-    
-    emit ReceivedFunds(msg.sender, msg.value);
+        revert ('This contract does not accept ETH');
     }
 
 fallback() external payable {
+     if (msg.value > 0) revert("Contract does not accept ETH");
+
     if (bannedAccounts[msg.sender]) revert AccountBanned(msg.sender);
     
     fallbackCalls[msg.sender] += 1;
@@ -158,10 +158,6 @@ fallback() external payable {
         emit MemberBanned(msg.sender);
         
         revert AccountBanned(msg.sender);
-    }
-
-    if (msg.value > 0) {
-        emit ReceivedFunds(msg.sender, msg.value);
     }    
     }
 }
