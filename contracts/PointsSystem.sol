@@ -8,7 +8,7 @@ contract PointsSystem {
 
     struct Member {
         bool exists;
-        uint96 balance;
+        uint256 balance;
     }
 
     //MAPPINGS
@@ -70,22 +70,24 @@ contract PointsSystem {
         require(amount > 0, "Amount must be greater than 0");
         require(amount <= 1000, "Exceeds max earn per tx");
 
-        members[msg.sender].balance += uint96(amount);
+        members[msg.sender].balance += uint256(amount);
         totalPoints += amount;
         emit PointsEarned(msg.sender, amount);
     }
 
     function assignPoints(address to, uint256 amount) external onlyOwner nonReentrancy {
         if (!members[to].exists) revert NotMember(to);
+        if(bannedAccounts[to]) revert AccountBanned(to);
         require(amount > 0, "Amount must be greater than 0");
 
-        members[to].balance += uint96(amount);
+        members[to].balance += uint256(amount);
         totalPoints += amount;
         emit PointsAssigned(msg.sender, to, amount);   
     }
 
     function transferPoints(address to, uint256 amount) external onlyMember accountBanned nonReentrancy {
         if (!members[to].exists) revert NotMember(to);
+        if(bannedAccounts[to]) revert AccountBanned(to);
         require(amount > 0, "Amount must be greater than 0");
 
         uint256 senderBal = members[msg.sender].balance;
@@ -93,8 +95,8 @@ contract PointsSystem {
 
         uint256 beforeTotal = totalPoints;
 
-        unchecked {members[msg.sender].balance = uint96(senderBal - amount); }
-        members[to].balance += uint96(amount);
+        unchecked {members[msg.sender].balance = uint256(senderBal - amount); }
+        members[to].balance += uint256(amount);
 
         assert(totalPoints == beforeTotal);
 
@@ -108,7 +110,7 @@ contract PointsSystem {
         uint256 bal = members[msg.sender].balance;
         if (bal < rewardCost) revert InsufficientPoints(bal, rewardCost);
 
-        unchecked {members[msg.sender].balance = uint96(bal - rewardCost); }
+        unchecked {members[msg.sender].balance = uint256(bal - rewardCost); }
         totalPoints -= rewardCost;
 
         emit RewardRedeemed(msg.sender, rewardType, rewardCost);     
